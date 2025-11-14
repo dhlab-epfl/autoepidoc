@@ -17,6 +17,8 @@ Then clone the repository and navigate to it via the terminal. Install the neces
 pip install -r requirements.txt
 ```
 ## Step 1: Import CSVs into MySQL
+First you need to prepare your data as csv files. If you have it as spreadsheets you can simply do `File -> Export -> CSV`. Make sure the data doesn't contain commas or replaces them with other characters such as `;`.
+
 The first script reads all .csv files from a directory and uploads them as tables into a MySQL database.
 You can do so by putting all your input data into a directory and call the script in the terminal with the right arguments. Here is an example usage :
 ```bash
