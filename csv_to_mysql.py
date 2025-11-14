@@ -1,7 +1,7 @@
 """
 csvs_to_mysql.py
 Usage:
-  python csv_to_mysql.py --csv_dir ./csv_armenian_epi --mysql_user etl_user --mysql_pass EtlUserPss --mysql_host 127.0.0.1 --mysql_db mydata
+  python csv_to_mysql.py --csv_dir ./csv_input_folder --mysql_user databaseuser --mysql_pass userpassword --mysql_host 127.0.0.1 --mysql_db databasename
 """
 
 import os

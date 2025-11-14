@@ -5,10 +5,9 @@ export_epidoc.py
 Query MySQL inscriptions and related metadata tables to export one EpiDoc (TEI) XML file per inscription.
 
 Usage:
-    python mysql_to_epidoc_V2.py --host 127.0.0.1 --user etl_user --password EtlUserPss --db epidata --out ./epidoc_output
+    python mysql_to_epidoc.py --host 127.0.0.1 --user databaseuser --password userpassword --db databasename --out ./output_folder
 
 Notes:
-- Requires pymysql and lxml: pip install pymysql lxml
 - Adjust SQL queries if your column names differ from those used here.
 """
 
