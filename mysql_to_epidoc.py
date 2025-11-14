@@ -5,10 +5,9 @@ export_epidoc.py
 Query MySQL inscriptions and related metadata tables to export one EpiDoc (TEI) XML file per inscription.
 
 Usage:
-    python mysql_to_epidoc.py --host 127.0.0.1 --user databaseuser --password userpassword --db databasename --out ./output_folder
+    python mysql_to_epidoc_V2.py --host 127.0.0.1 --user etl_user --password EtlUserPss --db epidata --out ./epidoc_output
 
 Notes:
-- You need to have a local MySQL database running with the required inscriptions and metadata tables.
 - Requires pymysql and lxml: pip install pymysql lxml
 - Adjust SQL queries if your column names differ from those used here.
 """
@@ -16,12 +15,12 @@ Notes:
 import os
 import argparse
 import re
-import pymysql
 import datetime
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
 from sqlalchemy import create_engine, text as sql_text
-
+#import code in the helpers directory
+from helpers.text_to_epidoc import dhv_to_epidoc
 # --------------------------
 # HELPER FUNCTIONS
 # --------------------------
@@ -34,6 +33,7 @@ def prettify(elem):
     rough_string = ET.tostring(elem, encoding="utf-8")
     reparsed = minidom.parseString(rough_string)
     return reparsed.toprettyxml(indent="  ", encoding="utf-8")
+
 
 
 def build_epidoc(record, conn, authority):
@@ -261,8 +261,8 @@ def build_epidoc(record, conn, authority):
 
     # Edition (main textual content placeholder)
     edition = ET.SubElement(body, "div", attrib={"type": "edition"})
-    ET.SubElement(edition, "head").text = "Text"
-    ET.SubElement(edition, "ab")  # Placeholder for inscription text (to be added later)
+    gentext = dhv_to_epidoc(record.get("text_t", ""))
+    edition.append(gentext)
 
     # Commentary (bilingual descriptive text)
     commentary = ET.SubElement(body, "div", attrib={"type": "commentary"})
@@ -326,8 +326,11 @@ def main():
             tei = build_epidoc(row, conn, args.authority)
             xml_str = prettify(tei)
 
+
             # Remove the XML declaration from minidom output and prepend EpiDoc model header
             xml_text = re.sub(r'^\s*<\?xml[^>]*\?>\s*', '', xml_str.decode("utf-8"), count=1)
+            # Clean up line break tags followed by newlines/whitespace
+            xml_text = re.sub(r'<lb([^>]*)/>\s*\n\s*', r'<lb\1/>', xml_text)
             out_text = (header + xml_text).encode("utf-8")
 
             # Write to XML file named after the inscription ID
