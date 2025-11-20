@@ -26,10 +26,20 @@ def dhv_to_epidoc(text):
 
     # Lacuna (extent unknown) — represented by ---
     text = text.replace('---', '<gap reason="lost" extent="unknown" unit="character"/>')
+    # «…» -> <gap reason="lost" extent="unknown" unit="character"/>
+    text = re.sub(r'«(.*?)»', r'<gap reason="lost" extent="unknown" unit="character"/>', text)
+    # [---] -> <gap reason="lost" extent="unknown" unit="character"/>
+    text = re.sub(r'\[---\]', r'<gap reason="lost" extent="unknown" unit="character"/>', text)
+    # ⎣c.1⎦ -> <gap reason="lost" quantity="1" unit="character" precision="low"/>
+    text = re.sub(r'⎣c\.(\d+)⎦', r'<gap reason="lost" quantity="\1" unit="character" precision="low"/>', text)
 
-    # Ligatures
-    #text = re.sub(r'\{', '<hi rend="ligature">', text)
-    #text = re.sub(r'\}', '</hi>', text)
+    # ⎣աբգ⎦ -> <supplied reason="omitted">աբգ</supplied>
+    text = re.sub(r'⎣(.*?)⎦', r'<supplied reason="omitted">\1</supplied>', text)
+
+    # [յ] -> <surplus>յ</surplus>
+    text = re.sub(r'\[(.*?)\]', r'<surplus>\1</surplus>', text)
+
+
 
     
 
@@ -72,11 +82,47 @@ def dhv_to_epidoc(text):
     text = re.sub(r'\^\^([^\^()]+?)\(([^)]*?)\)([^\^()]+?)\^\^', r'<expan><abbr>\1</abbr><ex>\2</ex><abbr>\3</abbr></expan>', text)
     # ^^ս(ո)ք(ա)^^ -> <expan><abbr>ս</abbr><ex>ո</ex><abbr>ք</abbr><ex>ա</ex></expan>
     text = re.sub(r'\^\^([^\^()]+?)\(([^)]*?)\)([^\^()]+?)\(([^)]*?)\)\^\^', r'<expan><abbr>\1</abbr><ex>\2</ex><abbr>\3</abbr><ex>\4</ex></expan>', text)
-    # ^^կ⎣ա⎦թ⎣ո⎦ղ⎣իկո⎦ս^^ -> <rs type="honorific">կ⎣ա⎦թ⎣ո⎦ղ⎣իկո⎦ս</rs>
-    text = re.sub(r'\^\^([^\^]+?)\^\^', r'<rs type="honorific">\1</rs>', text)
+    # ^^կ⎣ա⎦թ⎣ո⎦ղ⎣իկո⎦ս^^ -> <expan>կ<abbr>կ</abbr><ex>ա</ex><abbr>թ</abbr><ex>ո</ex><abbr>իկո</abbr><ex>ս</ex></expan>
+    def sub_honorifics_callback(match):
+        inner_text = match.group(1)
+
+        # Case 1: Complex Expansion (Contains ⎣...⎦)
+        if '⎣' in inner_text and '⎦' in inner_text:
+            
+            # Step A: Split the content by the bracketed expansion parts, keeping the parts in the list.
+            # E.g., 'կ⎣ա⎦թ⎣ո⎦ղ⎣իկո⎦ս' -> ['կ', '⎣ա⎦', 'թ', '⎣ո⎦', 'ղ', '⎣իկո⎦', 'ս']
+            split_parts = re.split(r'(⎣.*?⎦)', inner_text)
+            
+            result_parts = []
+            
+            # Step B: Iterate through the parts and apply tagging
+            for part in split_parts:
+                if not part:
+                    continue
+
+                # Expansion Part: starts/ends with ⎣/⎦
+                if part.startswith('⎣') and part.endswith('⎦'):
+                    content = part[1:-1] # Remove the brackets
+                    result_parts.append(f'<ex>{content}</ex>')
+                    
+                # Abbreviation Part: standard text chunk
+                else:
+                    result_parts.append(f'<abbr>{part}</abbr>')
+
+            processed_content = "".join(result_parts)
+            return f'<expan>{processed_content}</expan>'
+
+        # Case 2: Simple Abbreviation (Does NOT contain ⎣...⎦)
+        else:
+            return f'<abbr>{inner_text}</abbr>'
+    text = re.sub(r'\^\^(.*?)\^\^', sub_honorifics_callback, text)
+    # ութե(ան) -> <expan><abbr>ութե</abbr><ex>ան</ex></expan> anythinh but digits or latin letters
+    text = re.sub(r'(\w+)\((.*?)\)', r'<expan><abbr>\g<1></abbr><ex>\g<2></ex></expan>', text)
+
     # Եղի(այ)ի -> <expan><abbr>Եղի</abbr><ex>այ</ex><abbr>ի</abbr></expan>
     # belek             
-    text = re.sub(r'([Ա-Ֆ]+)\(([Ա-Ֆ]+)\)([Ա-Ֆ]+)', r'<expan><abbr>\1</abbr><ex>\2</ex><abbr>\3</abbr></expan>', text)
+    text = re.sub(r'(\w+)\(([^)]+)\)(\w+)', r'<expan><abbr>\1</abbr><ex>\2</ex><abbr>\3</abbr></expan>', text)
+
 
     # Space left  
     # (vac. c.10) -> <space quantity="10" unit="character"/> (possible spaces in parentheses)
