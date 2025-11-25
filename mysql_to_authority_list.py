@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-export_authority_list.py
+mysql_to_authority_list.py
 
 Generates TEI/EpiDoc-compliant authority lists from MySQL lookup tables.
 
 Usage:
-    python export_authority_list.py \
+    python mysql_to_authority_list.py \
         --host 127.0.0.1 \
         --user etl_user \
         --password EtlUserPss \
@@ -35,7 +35,7 @@ def prettify(elem):
     return minidom.parseString(rough).toprettyxml(indent="  ", encoding="utf-8")
 
 
-def make_tei_root(xmlid):
+def make_tei_root(xmlid, isArtsakh=False):
     """Create a TEI root element with shared header."""
     TEI = ET.Element(
         "TEI",
@@ -51,14 +51,24 @@ def make_tei_root(xmlid):
 
     # titleStmt
     titleStmt = ET.SubElement(fileDesc, "titleStmt")
-    ET.SubElement(titleStmt, "title").text = f"ArmEpiC – {xmlid} (Authoritative Vocabulary for ArmEpiC)"
+    if isArtsakh:
+        ET.SubElement(titleStmt, "title").text = f"ArtsakhEpiC – {xmlid} (hierarchical authority file for ArmEpiC / ArtsakhEpiC)"
+    else:
+        ET.SubElement(titleStmt, "title").text = f"ArmEpiC – {xmlid} (Authoritative Vocabulary for ArmEpiC)"
+
     resp = ET.SubElement(titleStmt, "respStmt")
     ET.SubElement(resp, "resp").text = "Compiled by"
-    ET.SubElement(resp, "persName").text = "ArmEpiC / EPFL Digital Humanities Laboratory (DHLAB)"
+    if isArtsakh:
+        ET.SubElement(resp, "persName").text = "ArtsakhEpiC / EPFL Digital Humanities Laboratory (DHLAB)"
+    else:
+        ET.SubElement(resp, "persName").text = "ArmEpiC / EPFL Digital Humanities Laboratory (DHLAB)"
 
     # publicationStmt
     pub = ET.SubElement(fileDesc, "publicationStmt")
-    ET.SubElement(pub, "authority").text = "ArmEpiC – Armenian Epigraphic Corpus"
+    if isArtsakh:
+        ET.SubElement(pub, "authority").text = "ArtsakhEpiC – Armenian Epigraphic Corpus"
+    else:
+        ET.SubElement(pub, "authority").text = "ArmEpiC – Armenian Epigraphic Corpus"
     ET.SubElement(pub, "publisher").text = "EPFL Digital Humanities Laboratory (DHLAB)"
     ET.SubElement(pub, "pubPlace").text = "Lausanne"
     ET.SubElement(pub, "date", when="2025").text = "2025"
@@ -86,7 +96,10 @@ def build_mat_auth(rows):
     text = ET.SubElement(TEI, "text")
     body = ET.SubElement(text, "body")
 
-    lst = ET.SubElement(body, "list", attrib={"type": "material", "xml:lang": "hy"})
+    lst = ET.SubElement(body, "list", attrib={"type": "material", "xml:id": "ArmEpiC_ListMaterial"})
+
+    # tuple to hold standoff relations
+    standoff_relations = []
 
     for row in rows:
         xmlid = row.get("code")
@@ -94,6 +107,9 @@ def build_mat_auth(rows):
         hy = row.get("preflabel_hy")
         desc_en = row.get("description_en")
         desc_hy = row.get("description_hy")
+        aat = row.get("aat_uri")
+        eagle = row.get("eagle_uri")
+        matchtype = row.get("relation_type_eagle")
 
         if not xmlid:
             continue
@@ -110,6 +126,26 @@ def build_mat_auth(rows):
             ET.SubElement(item, "desc", attrib={"xml:lang": "hy"}).text = desc_hy
         if desc_en:
             ET.SubElement(item, "desc", attrib={"xml:lang": "en"}).text = desc_en
+        # add them to a tuple for generation of standoff
+        if aat and eagle and matchtype:
+            standoff_relations.append( (xmlid, aat, eagle, matchtype) )
+
+    if standoff_relations:
+        standOff = ET.SubElement(TEI, "standOff")
+        listRelation = ET.SubElement(standOff, "listRelation")
+        ET.SubElement(listRelation, "head").text = "Cross-references for materials"
+        for mat_id, aat_uri, eagle_uri, matchtype in standoff_relations:
+            relation_aat = ET.SubElement(listRelation, "relation", attrib={
+                "name": matchtype,
+                "active": f"urn:armepic:material:{mat_id}",
+                "passive": aat_uri
+            })
+            relation_eagle = ET.SubElement(listRelation, "relation", attrib={
+                "name": matchtype,
+                "active": f"urn:armepic:material:{mat_id}",
+                "passive": eagle_uri
+            })
+
 
     return TEI
 
@@ -117,7 +153,7 @@ def build_bibl_auth(rows):
     TEI = make_tei_root("ArmEpiC_ListBibl")
     text = ET.SubElement(TEI, "text")
     body = ET.SubElement(text, "body")
-    list_bibl = ET.SubElement(body, "listBibl", attrib={"type": "bibliographic", "xml:id": "ListBibl"})
+    list_bibl = ET.SubElement(body, "listBibl", attrib={"type": "bibliographic", "xml:id": "ArmEpiC_ListBibl"})
     for row in rows:
         xmlid = row.get("bibl_id")
         authors = row.get("authors")
@@ -148,10 +184,10 @@ def build_bibl_auth(rows):
     return TEI
 
 def build_place_auth(rows):
-    TEI = make_tei_root("ArmEpiC_ListPlace")
+    TEI = make_tei_root("ArmEpiC_ListPlace", isArtsakh=True)
     text = ET.SubElement(TEI, "text")
     body = ET.SubElement(text, "body")
-    lst = ET.SubElement(body, "listPlace", attrib={"type": "Artsakh_ListPlace"})
+    lst = ET.SubElement(body, "listPlace", attrib={"xml:id": "Artsakh_ListPlace"})
 
     for row in rows:
         idno = row.get("place_id")
@@ -216,7 +252,7 @@ def build_scripts_auth(rows):
     TEI = make_tei_root("ArmEpiC_ListScripts")
     text = ET.SubElement(TEI, "text")
     body = ET.SubElement(text, "body")
-    lst = ET.SubElement(body, "list", attrib={"type": "script", "xml:lang": "hy"})
+    lst = ET.SubElement(body, "list", attrib={"type": "script", "xml:id": "ArmEpiC_ListScripts"})
 
     for row in rows:
         idno = row.get("xml_id")
@@ -281,10 +317,11 @@ def build_preserv_auth(rows):
     return TEI
 
 def build_monument_auth(rows):
-    TEI = make_tei_root("ArmEpiC_ListMonuments")
+    TEI = make_tei_root("ArmEpiC_ListMonuments", isArtsakh=True)
     text = ET.SubElement(TEI, "text")
     body = ET.SubElement(text, "body")
     lst = ET.SubElement(body, "list", attrib={"type": "monument", "xml:id": "ArmEpiC_ListMonuments"})
+
 
     for row in rows:
         idno = row.get("auto_id")
@@ -305,6 +342,7 @@ def build_monument_auth(rows):
         monumentwatch = row.get("ext_monumentwatch")
         extother = row.get("ext_other")
         place = row.get("place_id")
+        relation = row.get("relations_parent")
 
         if not idno:
             continue
@@ -339,6 +377,8 @@ def build_monument_auth(rows):
             ET.SubElement(obj, "idno", attrib={"type":"other"}).text = extother
         if place:
             ET.SubElement(obj, "note", attrib={"type":"relation","target":f"urn:armepic:artsakh:plc:{place}"}).text = "locatedIn"
+        if relation:
+            ET.SubElement(obj, "note", attrib={"type":"relation","target":f"urn:armepic:mon:{relation}"}).text = "partOf"
     return TEI
 
 def build_inscription_auth(rows):
@@ -379,10 +419,12 @@ def build_inscription_auth(rows):
     return TEI
 
 def build_object_auth(rows):
-    TEI = make_tei_root("ArmEpiC_ListObjects")
+    TEI = make_tei_root("ArmEpiC_ListObjectType")
     text = ET.SubElement(TEI, "text")
     body = ET.SubElement(text, "body")
     lst = ET.SubElement(body, "list", attrib={"type": "object", "xml:id": "ArmEpiC_ListObjectType"})
+
+    standoff_relations = []
 
     for row in rows:
         idno = row.get("code")
@@ -391,6 +433,8 @@ def build_object_auth(rows):
         desc_hy = row.get("description_hy")
         desc_en = row.get("description_en")
         notes = row.get("notes")
+        exactmatch = row.get("exactmatch")
+        closematch = row.get("closematch")
 
         if not idno:
             continue
@@ -406,6 +450,21 @@ def build_object_auth(rows):
             ET.SubElement(item, "desc", attrib={"xml:lang": "en"}).text = desc_en
         if notes:
             ET.SubElement(item, "note").text = notes
+        if exactmatch:
+            standoff_relations.append( (idno, exactmatch, "exactMatch") )
+        if closematch:
+            standoff_relations.append( (idno, closematch, "closeMatch") )
+    if standoff_relations:
+        print("Generating standoff relations for object types...")
+        standOff = ET.SubElement(TEI, "standOff")
+        listRelation = ET.SubElement(standOff, "listRelation")
+        ET.SubElement(listRelation, "head").text = "Cross-references for object types"
+        for obj_id, target_uri, matchtype in standoff_relations:
+            relation = ET.SubElement(listRelation, "relation", attrib={
+                "name": matchtype,
+                "active": f"urn:armepic:object:{obj_id}",
+                "passive": target_uri
+            })
         
     return TEI
 
@@ -415,6 +474,8 @@ def build_technique_auth(rows):
     body = ET.SubElement(text, "body")
     lst = ET.SubElement(body, "list", attrib={"type": "technique", "xml:id": "ArmEpiC_ListTechniques"})
 
+    standoff_relations = []
+
     for row in rows:
         idno = row.get("code")
         term_hy = row.get("preflabel_hy")
@@ -422,6 +483,8 @@ def build_technique_auth(rows):
         desc_hy = row.get("description_hy")
         desc_en = row.get("description_en")
         notes = row.get("notes")
+        exactmatch = row.get("exactmatch")
+        closematch = row.get("closematch")
         if not idno:
             continue
         item = ET.SubElement(lst, "term", attrib={"xml:id": idno})
@@ -436,6 +499,20 @@ def build_technique_auth(rows):
             ET.SubElement(item, "desc", attrib={"xml:lang": "en"}).text = desc_en
         if notes:
             ET.SubElement(item, "note").text = notes
+        if exactmatch:
+            standoff_relations.append( (idno, exactmatch, "exactMatch") )
+        if closematch:
+            standoff_relations.append( (idno, closematch, "closeMatch") )
+    if standoff_relations:
+        standOff = ET.SubElement(TEI, "standOff")
+        listRelation = ET.SubElement(standOff, "listRelation")
+        ET.SubElement(listRelation, "head").text = "Cross-references for techniques"
+        for tech_id, target_uri, matchtype in standoff_relations:
+            relation = ET.SubElement(listRelation, "relation", attrib={
+                "name": matchtype,
+                "active": f"urn:armepic:technique:{tech_id}",
+                "passive": target_uri
+            })
     return TEI
 
 def main():
@@ -452,7 +529,6 @@ def main():
     url = f"mysql+pymysql://{args.user}:{args.password}@{args.host}:{args.port}/{args.db}"
     engine = create_engine(url)
 
-    # Ensure output directory exists
     os.makedirs(args.out, exist_ok=True)
 
     with engine.connect() as conn:
@@ -465,6 +541,7 @@ def main():
         fname = os.path.join(args.out, "ArmEpiC_ListMaterial.xml")
         with open(fname, "wb") as f:
             f.write(xml_bytes_mat)
+        print("Material authority list generated.")
 
         # Bibliographic authority list
         rows = conn.execute(text(f"SELECT * FROM listbibl")).mappings().all()
@@ -473,6 +550,7 @@ def main():
         fname = os.path.join(args.out, "ArmEpiC_ListBibl.xml")
         with open(fname, "wb") as f:
             f.write(xml_bytes_bibl)
+        print("Bibliographic authority list generated.")
 
         # Place authority list
         rows = conn.execute(text(f"SELECT * FROM listplaces")).mappings().all()
@@ -481,6 +559,7 @@ def main():
         fname = os.path.join(args.out, "ArmEpiC_ListPlace.xml")
         with open(fname, "wb") as f:
             f.write(xml_bytes_place)
+        print("Place authority list generated.")
 
         # Script authority list
         rows = conn.execute(text(f"SELECT * FROM listscripts")).mappings().all()
@@ -489,6 +568,7 @@ def main():
         fname = os.path.join(args.out, "ArmEpiC_ListScripts.xml")
         with open(fname, "wb") as f:
             f.write(xml_bytes_scripts)
+        print("Script authority list generated.")
 
         # Preservation authority list
         rows = conn.execute(text(f"SELECT * FROM listpreserv")).mappings().all()
@@ -497,6 +577,7 @@ def main():
         fname = os.path.join(args.out, "ArmEpiC_ListPreservation.xml")
         with open(fname, "wb") as f:
             f.write(xml_bytes_preserv)
+        print("Preservation authority list generated.")
 
         # Monument authority list (contains both listmonum and listsubmonum)
         rows_monum = conn.execute(text(f"SELECT * FROM listmonum")).mappings().all()
@@ -507,6 +588,7 @@ def main():
         fname = os.path.join(args.out, "ArmEpiC_ListMonuments.xml")
         with open(fname, "wb") as f:
             f.write(xml_bytes_monument)
+        print("Monument authority list generated.")
 
         # Inscription type authority list
         rows = conn.execute(text(f"SELECT * FROM listinscr")).mappings().all()
@@ -515,14 +597,16 @@ def main():
         fname = os.path.join(args.out, "ArmEpiC_ListInscriptions.xml")
         with open(fname, "wb") as f:
             f.write(xml_bytes_inscription)
+        print("Inscription type authority list generated.")
 
         # Object type authority list
         rows = conn.execute(text(f"SELECT * FROM listobjs")).mappings().all()
         TEI_object = build_object_auth(rows)
         xml_bytes_object = prettify(TEI_object)
-        fname = os.path.join(args.out, "ArmEpiC_ListObjects.xml")
+        fname = os.path.join(args.out, "ArmEpiC_ListObjectType.xml")
         with open(fname, "wb") as f:
             f.write(xml_bytes_object)
+        print("Object type authority list generated.")
 
         # Technique authority list
         rows = conn.execute(text(f"SELECT * FROM listtechniques")).mappings().all()
@@ -531,6 +615,7 @@ def main():
         fname = os.path.join(args.out, "ArmEpiC_ListTechniques.xml")
         with open(fname, "wb") as f:
             f.write(xml_bytes_technique)
+        print("Technique authority list generated.")
         
         
 

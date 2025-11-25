@@ -20,9 +20,13 @@ def dhv_to_epidoc(text):
         tag = f'<lb n="{line_counter}"/>'
         line_counter += 1
         return tag
-    
+
     # Line breaks: 	word division across lines, or explicit line markers
     text = re.sub(r'/(?=[^>])', replace_linebreak, text)
+
+    # 1271 -> <num value="1271">1271</num> should be between blanks
+    text = re.sub(r'(?<=\s)(\d{1,4})(?=\s)', r'<num value="\1">\1</num>', text)
+
 
     # Lacuna (extent unknown) — represented by ---
     text = text.replace('---', '<gap reason="lost" extent="unknown" unit="character"/>')
@@ -35,6 +39,9 @@ def dhv_to_epidoc(text):
 
     # ⎣աբգ⎦ -> <supplied reason="omitted">աբգ</supplied>
     text = re.sub(r'⎣(.*?)⎦', r'<supplied reason="omitted">\1</supplied>', text)
+
+    #  ⎡Ա⎤ -> <supplied reason=“lost”>Ա</supplied>
+    text = re.sub(r'⎡(.*?)⎤', r'<supplied reason="lost">\1</supplied>', text)
 
     # [յ] -> <surplus>յ</surplus>
     text = re.sub(r'\[(.*?)\]', r'<surplus>\1</surplus>', text)
@@ -129,6 +136,13 @@ def dhv_to_epidoc(text):
     text = re.sub(r'\(\s*vac\.\s*c\.(\d+)\s*\)', r'<space quantity="\1" unit="character"/>', text)
     # (vac. 20) -> <space quantity="10" unit="character"/>
     text = re.sub(r'\(\s*vac\.\s*(\d+)\s*\)', r'<space quantity="\1" unit="character"/>', text)
+    # vac.10 -> <space quantity="10" unit="character"/>
+    text = re.sub(r'vac\.(\d+)', r'<space quantity="\1" unit="character"/>', text)
+    # (vac.3) -> <space quantity="3" unit="character"/>
+    text = re.sub(r'\(\s*vac\.(\d+)\s*\)', r'<space quantity="\1" unit="character"/>', text)
+
+    # (2) -> <num value="2">2</num>
+    text = re.sub(r'\((\d+)\)', r'<num value="\1">\1</num>', text)
 
 
     text = text + '</ab>'
