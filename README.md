@@ -13,6 +13,8 @@ You also need to setup a MySQL Server by downloading the [installer](https://dev
 
 If you have issues you can follow this [official tutorial](https://dev.mysql.com/doc/mysql-getting-started/en). 
 
+Your data must follow the format presented in the `dummy_data` folder.
+
 Then clone the repository and navigate to it via the terminal. Install the necessary Python libraries :
 ```
 pip install -r requirements.txt
@@ -63,3 +65,17 @@ The last step is to use the third script to produce authority lists. This script
         --db databasename \
         --out ./output_folder
 ```
+## Final Notice
+
+This codebase is provided as a flexible and extensible framework.
+Although it has been developed for a specific research context, its structure and logic are intentionally modular and can be adapted to other datasets, schemas, or workflows.
+
+Users are encouraged to modify, extend, or repurpose the code to fit their own use cases, including but not limited to:
+
+Different database structures
+
+Alternative authority lists or controlled vocabularies
+
+Other TEI / EpiDoc–based projects or XML standards
+
+No part of the code is considered fixed or prescriptive. Adjustments may be required depending on local requirements, data models, or institutional practices.
