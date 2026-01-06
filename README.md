@@ -5,6 +5,7 @@ It was developed as part of the ArmEpiC initiative hosted by the EPFL Digital Hu
 The workflow consists of two main scripts:
 1. `csv_to_mysql.py` imports and normalizes all CSV files into a MySQL database.
 2. `mysql_to_epidoc.py` queries the MySQL database and exports one EpiDoc XML file per inscription record.
+3. `mysql_to_authority_list.py` queries the MySQL database and exports XML authority lists.
 ## Requirements 
 Make sure you have [Python 3.9+](https://www.python.org/downloads). 
 
@@ -51,3 +52,14 @@ python mysql_to_epidoc.py \
 - Optional : As previously, `host` and `port` can be specified and have default values `127.0.0.1` and `3306`. `limit` specifies the maximum number of epigraphic samples you want to process, default value is `10`. `authority` is the name of your project/organisation and has default value `ArmEpic - digital collection of armenian epigraphic inscriptions`.
 
 With proper execution, you should have the XML files ready in the specified folder. If you have issues with sql queries, make sure the collumn names follow the required format or modify the code if need be.
+
+## Step 3: Convert your data to authority lists
+The last step is to use the third script to produce authority lists. This script will produce 9 authority lists, one for each of the following : biblography, inscription types, materials, monuments, object types, places, preservation states, scripts and techniques. Note that the provided folder can either be blank or already have authority lists of the correct format. If the list is missing the script creates it, otherwise the existing one is updated with new entries from your database.
+```
+ python mysql_to_authority_list.py \
+        --host 127.0.0.1 \
+        --user databaseuser \
+        --password userpassword \
+        --db databasename \
+        --out ./output_folder
+```
