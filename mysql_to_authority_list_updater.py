@@ -417,8 +417,8 @@ def update_inscription_auth(filepath, rows):
         ET.SubElement(item, "idno", attrib={"type": "urn"}).text = f"urn:armepic:ist:{idno}"
         if row.get("preflabel_hy"): ET.SubElement(item, "termName", attrib={"xml:lang": "hy"}).text = row.get("preflabel_hy")
         if row.get("preflabel_en"): ET.SubElement(item, "termName", attrib={"xml:lang": "en"}).text = row.get("preflabel_en")
-        if row.get("desc_hy"): ET.SubElement(item, "desc", attrib={"xml:lang": "hy"}).text = row.get("desc_hy")
-        if row.get("desc_en"): ET.SubElement(item, "desc", attrib={"xml:lang": "en"}).text = row.get("desc_en")
+        if row.get("description_hy"): ET.SubElement(item, "desc", attrib={"xml:lang": "hy"}).text = row.get("desc_hy")
+        if row.get("description_en"): ET.SubElement(item, "desc", attrib={"xml:lang": "en"}).text = row.get("desc_en")
         
         if row.get("examples_local_ids_semi"):
             examples = ET.SubElement(item, "list", attrib={"type":"examples"})

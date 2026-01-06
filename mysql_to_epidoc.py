@@ -73,10 +73,8 @@ def build_epidoc(record, conn, authority):
         "ArtsakhEpiC – Regional Corpus of Armenian Inscriptions from Artsakh, "
         "part of the ArmEpiC (Armenian Epigraphic Corpus) hosted by the EPFL Digital Humanities Laboratory (DHLAB)"
     )
-    ET.SubElement(publicationStmt, "authority", attrib={"xml:lang": "hy"}).text = (
-        "ԱրցախԷպիԿ (ArtsakhEpiC)՝ հայկական արձանագրությունների տարածաշրջանային հավաքածու, ընդգրկված ՀայԷպիԿ (ArmEpiC) համահայկական թվային կորպուսի մեջ, "
-        "տեղակայված՝ Լոզանի Ֆեդերալ Պոլիտեխնիկական Ինստիտուտի Թվային Մարդաբանության Լաբորատորիայում (DHLAB)"
-    )
+    ET.SubElement(publicationStmt, "authority", attrib={"xml:lang": "hy"}).text = "ԱրցախԷպիԿ (ArtsakhEpiC) հայկական արձանագրությունների տարածաշրջանային հավաքածու, ընդգրկված ՀայԷպիԿ (ArmEpiC) համահայկական թվային կորպուսի մեջ, տեղակայված՝ Լոզանի Ֆեդերալ Պոլիտեխնիկական Ինստիտուտի Թվային Հումանիտար Գիտությունների Լաբորատորիայում (DHLAB)"
+
 
     # Unique identifiers for the file and corpus
     ET.SubElement(publicationStmt, "idno", attrib={"type": "filename"}).text = f"{record['inscription_id']}.xml"
@@ -116,9 +114,9 @@ def build_epidoc(record, conn, authority):
     # --- Sub-monument information ---
     msPart = ET.SubElement(msDesc, "msPart")
     msIdentifier2 = ET.SubElement(msPart, "msIdentifier")
-    repo2 = ET.SubElement(msIdentifier2, "repository", attrib={"ref": f"urn:armepic:mon:{record['sub_monument__id']}"})
+    repo2 = ET.SubElement(msIdentifier2, "repository", attrib={"ref": f"urn:armepic:mon:{record['sub_monument_id']}"})
     submon_res = conn.execute(sql_text("SELECT preferred_name_eng, preferred_name_arm FROM listsubmonum WHERE auto_id = :smid"),
-                              {"smid": record.get("sub_monument__id") or ""})
+                              {"smid": record.get("sub_monument_id") or ""})
     submon = submon_res.mappings().fetchone()
     if submon and submon.get("preferred_name_eng"):
         ET.SubElement(repo2, "objectName", attrib={"xml:lang": "en"}).text = submon["preferred_name_eng"]
@@ -203,10 +201,20 @@ def build_epidoc(record, conn, authority):
 
     # Date fields in Armenian and Gregorian calendars
     origDate = ET.SubElement(origin, "origDate")
-    if record.get("date_display_according_to_armenain_era"):
-        ET.SubElement(origDate, "date", attrib={"calendar": "#cal_armenian", "when": record.get("date_display_according_to_armenain_era")}).text = record["date_display_according_to_armenain_era"]
+    r"""
+    if record.get("date_display_according_to_armenian_era"):
+        match = re.match(r'(.+?)\s*-\s*(\d+)', record["date_display_according_to_armenian_era"])
+        if match:
+            text_part = match.group(1).strip()
+            year_part = match.group(2).zfill(4)
+            ET.SubElement(origDate, "date", attrib={"calendar": "#cal_armenian", "when-armenian": year_part}).text = text_part
+        elif re.match(r'^\s*\d+\s*$', record["date_display_according_to_armenian_era"]):
+            ET.SubElement(origDate, "date", attrib={"calendar": "#cal_armenian", "when-armenian": ""}).text = record["date_display_according_to_armenain_era"].strip().zfill(4) 
+    """
+    
     if record.get("date_display_en"):
-        ET.SubElement(origDate, "date", attrib={"calendar": "#cal_gregorian", "when": record.get("date_display_en")}).text = record["date_display_en"]
+        parsed_date = re.sub(r'[^0-9]', '', record["date_display_en"]).strip()
+        ET.SubElement(origDate, "date", attrib={"calendar": "#cal_gregorian", "when": parsed_date}).text = record["date_display_en"]
 
     # Provenance: find and current observation places
     if record.get("place_find"):
@@ -240,20 +248,6 @@ def build_epidoc(record, conn, authority):
     # --- Facsimile (image and drawing references) ---
     facsimile = ET.SubElement(TEI, "facsimile")
     surface = ET.SubElement(facsimile, "surface", attrib={"xml:id": f"surf_{record['inscription_id']}"})
-    list_bibls = []
-    if record.get("bibliography"):
-        list_bibls = [b.strip() for b in record["bibliography"].split(";") if b.strip()]
-    n = 1
-    for bibl in list_bibls:
-        bibltype = conn.execute(sql_text("SELECT type FROM listbibl WHERE bibl_id = :code"), {"code": bibl})
-        bibltype_res = bibltype.mappings().fetchone()
-        ET.SubElement(surface, "graphic", attrib={
-            "n": str(n),
-            "source": f"urn:armepic:bibl:{bibl}",
-            "ana": bibltype_res["type"] if bibltype_res and bibltype_res.get("type") else 'other'
-        })
-        n += 1
-
     # --- Text body: edition, commentary, and bibliography ---
     text = ET.SubElement(TEI, "text")
     body = ET.SubElement(text, "body")
@@ -263,23 +257,41 @@ def build_epidoc(record, conn, authority):
     gentext = dhv_to_epidoc(record.get("text_t", ""))
     edition.append(gentext)
 
+    # Modern Armenian Translation
+    translation = ET.SubElement(body, "div", attrib={"type": "translation"})
+    if record.get("text_modern_armenian"):
+        ET.SubElement(translation, "p", attrib={"xml:lang": "hy"}).text = record["text_modern_armenian"]
+
+    # English Translation
+    translationeng = ET.SubElement(body, "div", attrib={"type": "translation"})
+    if record.get("text_english"):
+        ET.SubElement(translationeng, "p", attrib={"xml:lang": "eng"}).text = record["text_english"]
+
     # Commentary (bilingual descriptive text)
     commentary = ET.SubElement(body, "div", attrib={"type": "commentary"})
     if record.get("description_hy"):
         ET.SubElement(commentary, "p", attrib={"xml:lang": "hy"}).text = record["description_hy"]
     if record.get("description_en"):
-        ET.SubElement(commentary, "p", attrib={"xml:lang": "en"}).text = record["description_en"]
+        ET.SubElement(commentary, "p", attrib={"xml:lang": "eng"}).text = record["description_en"]
 
     # Bibliography references
     bibliography = ET.SubElement(body, "div", attrib={"type": "bibliography"})
-    listBibl = ET.SubElement(bibliography, "listBibl")
 
     # Query references citing this inscription
-    bibl_rows = conn.execute(sql_text("SELECT title, authors, year FROM listbibl "
-                                      "WHERE FIND_IN_SET(:iid, cited_in_inscriptions)"),
-                             {"iid": record["inscription_id"]}).fetchall()
-    for b in bibl_rows:
-        ET.SubElement(listBibl, "bibl").text = f"{b['authors']} ({b['year']}): {b['title']}"
+    list_bibls = []
+    if record.get("bibliography"):
+        list_bibls = [b.strip() for b in record["bibliography"].split(";") if b.strip()]
+    n = 1
+    for bibl in list_bibls:
+        bibltype = conn.execute(sql_text("SELECT type FROM listbibl WHERE bibl_id = :code"), {"code": bibl})
+        bibltype_res = bibltype.mappings().fetchone()
+        ET.SubElement(bibliography, "reference", attrib={
+            "n": str(n),
+            "source": f"urn:armepic:bibl:{bibl}",
+            "ana": bibltype_res["type"] if bibltype_res and bibltype_res.get("type") else 'other'
+        })
+        n += 1
+
 
     return TEI
 

@@ -49,14 +49,14 @@ def dhv_to_epidoc(text):
 
 
     
-
+    # <g type="decoration" subtype="vertical-dots" quantity="2">:</g><w lemma="թիւ" pos="n">Թիւ</w><g type="decoration" subtype="vertical-dots" quantity="2">:</g>
 
     # full stops and numeral markings
     def replacement_func(match):
         # Group 1  captures the full numeral marker, e.g., ":աբգ:"
         if match.group(1):
             # We only want the colons for the output, so we return the XML with "::"
-            return f'<g type="punct" subtype="numeral-marker">{match.group(1)}</g>'
+            return f'<g type="decoration" subtype="vertical-dots" quantity="2">:</g>{match.group(1).strip(":")}<g type="decoration" subtype="vertical-dots" quantity="2">:</g>'
         # Group 2 (match.group(2)) captures the single colon ":"
         elif match.group(2):
             return '<g type="fullstopr">:</g>'
@@ -70,15 +70,27 @@ def dhv_to_epidoc(text):
         r'\{([^{}]*?)\s*\^\^([\u0531-\u058F]+)\s*\}\s*\(\s*([\u0531-\u058F]+)\s*\)\s*([\u0531-\u058F]+)\^\^'
     )
 
+    r"""
+    {ն ^^Ա}(ստուծո)յ^^  ->
+    <hi rend="ligature" xml:id="lig1">ն</hi>
+    <expan>
+        <abbr><hi rend="ligature" xml:id="lig2">Ա</hi></abbr>
+        <ex>ստուծո</ex>
+        <abbr>յ</abbr>
+        </expan>
+    <join xml:id="j1" result="ligature" target="#lig1 #lig2"/>
+    """
+    ligcounter = 1
     def _repl_special(m):
+        nonlocal ligcounter
         lig_before = m.group(1).strip()
         first_abbr = m.group(2).strip()          
         expansion = m.group(3).strip()           
         last_abbr = m.group(4).strip()           
-        # produce ligature containing the lig_before + first_abbr,
-        # then an <expan> with empty initial <abbr>, <ex> and final <abbr>
-        return (f'<hi rend="ligature">{lig_before} {first_abbr}</hi>'
-                f'<expan><abbr></abbr><ex>{expansion}</ex><abbr>{last_abbr}</abbr></expan>')
+        ligcounter += 2
+        return (f'<hi rend="ligature" xml:id="lig{ligcounter-2}">{lig_before}</hi>'
+                f'<expan><abbr><hi rend="ligature" xml:id="lig{ligcounter-1}">{first_abbr}</hi></abbr><ex>{expansion}</ex><abbr>{last_abbr}</abbr></expan>'
+                f'<join xml:id="j{ligcounter-2}" result="ligature" target="#lig{ligcounter-2} #lig{ligcounter-1}"/>')
 
     text = pattern.sub(_repl_special, text)
 
@@ -147,8 +159,4 @@ def dhv_to_epidoc(text):
 
     text = text + '</ab>'
     return ET.fromstring(text)
-"""
-input = ":Թիւ: ՉԻ (1271)/ Կ{ամ}{աւ}{ն ^^Ա}(ստուծո)յ^^, ես՝ Յոհանէս, / {որ}դի Իւանէի՝ առաջն{որ}դ ^^Ս(ուր)բ^^ ու/խտիս {Գան}ձաս{ար}ա, հր{ամ}{ան}{աւ} ^^տ(եառ)ն^^ Խաչ/ինո Աթ{աբ}{եկի}ն, ի յիմ հալալ {ար}դե{ան}ց գ{նե}ց/ի զՎ{ար}{դան}աթաղս, {մին} չ{որ}եց եզ{ն ե}ւ այլ  ընծ/էք տվի ի ^^Ս(ուր)բ^^  Կաթողիկէս. {մի}{աբ}{ան}քս տվին զՈհ{ան}ու, զ/{Ակ}{ոբ}ա տ{աւ}նն զ{ամ}էն {եկե}{ղեց}իք{ս ի}նձ {պա}տ{ար}{ագ}. ով խ/{ափան}է, {դա}տի յ^^Ա(ստուծո)յ^^:"
-print(dhv_to_epidoc(input))
-"""
 
